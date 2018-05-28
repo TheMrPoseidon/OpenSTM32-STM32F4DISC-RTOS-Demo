@@ -7,9 +7,9 @@
   * @brief   Default main function.
   ******************************************************************************
 */
-#include "hardware.h"
-
 #include "FreeRTOS.h" /* Must come first. */
+
+#include "hardware.h"
 
 static void prvSetupHardware( void );
 void prvATask(void *pvParameter);
@@ -22,6 +22,7 @@ int main(void)
 	/* Setup the microcontroller hardware for the demo. */
 	prvSetupHardware();
 
+
 	/*
 	 * Create the first LED Task
 	 */
@@ -31,6 +32,8 @@ int main(void)
 	xTaskCreate(prvDTask, "DTask", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
 
 	vTaskStartScheduler();
+
+	for(;;) { }
 
 	return 0;
 }
