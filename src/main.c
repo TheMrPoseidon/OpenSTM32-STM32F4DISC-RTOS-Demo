@@ -77,39 +77,26 @@ void prvAccelerometerTask( void *pvParameters )
 	}
 }
 
-const int delta = 100;
+const int tap = 1020;
 
 void prvCalculateTask( void *pvParameters ) {
-	int last_x = 0, last_y = 0;
-	int ax = 0, ay = 0;
-	uint32_t round = 0, checked = 0;
-	for ( ;; )
+	for(;;)
 	{
-		ax = x;
-		ay = y;
-		if (abs(last_x - x) > delta && abs(last_y - y) > delta)
-		{
-			if(abs((last_x/last_y)*(x/y)) >= 0.9)
+		if(z > tap) {
+			while(z > tap - 10) vTaskDelay(10);
+
+			vTaskDelay(100);
+
+			for(int i = 0; i < 10; i++)
 			{
-				checked += 1;
-
-				if (checked % 4 == 0)
-				{
+				if(z > tap){
 					xSemaphoreGive(xSemaphoreBlink);
+					break;
 				}
+				vTaskDelay(10);
 			}
-			last_x = x;
-			last_y = y;
 		}
-		else
-			round += 1;
-
-		if(round >= 100)
-		{
-			round = checked = 0;
-		}
-
-		vTaskDelay(20);
+		vTaskDelay(50);
 	}
 }
 
