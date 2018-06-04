@@ -8,32 +8,30 @@
   ******************************************************************************
 */
 #include "FreeRTOS.h" /* Must come first. */
-
+#include "semphr.h"
 #include "hardware.h"
 
 int16_t x, y, z;
+SemaphoreHandle_t xSemaphoreBlink;
 
 static void prvSetupHardware( void );
-void prvATask(void *pvParameter);
-void prvBTask(void *pvParameter);
-void prvCTask(void *pvParameter);
-void prvDTask(void *pvParameter);
+void prvBlinkTask(void *pvParameter);
 void prvAccelerometerTask( void *pvParameters );
+void prvCalculateTask( void *pvParameters );
 
 int main(void)
 {
 	/* Setup the microcontroller hardware for the demo. */
 	prvSetupHardware();
-	BSP_ACCELERO_Init();
+
+	xSemaphoreBlink = xSemaphoreCreateBinary();
 
 	/*
 	 * Create the first LED Task
 	 */
-	xTaskCreate(prvAccelerometerTask, "AcceleroTask", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
-	xTaskCreate(prvATask, "ATask", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
-	xTaskCreate(prvBTask, "BTask", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
-	xTaskCreate(prvCTask, "CTask", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
-	xTaskCreate(prvDTask, "DTask", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
+	xTaskCreate(prvAccelerometerTask, "AccelerometerTask", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
+	xTaskCreate(prvBlinkTask, "ATask", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
+	xTaskCreate(prvCalculateTask, "CalculateTask", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
 
 	vTaskStartScheduler();
 
@@ -42,62 +40,31 @@ int main(void)
 	return 0;
 }
 
-void prvATask( void *pvParameters )
-{
-	BSP_LED_Init(LED5);
-	for( ;; )
-	{
-		if(x > 100)
-			BSP_LED_On(LED5);
-		else
-			BSP_LED_Off(LED5);
-		vTaskDelay(50);
-	}
-}
-
-void prvBTask( void *pvParameters )
-{
-	BSP_LED_Init(LED4);
-	for( ;; )
-	{
-		if(x <  -100)
-			BSP_LED_On(LED4);
-		else
-			BSP_LED_Off(LED4);
-		vTaskDelay(50);
-	}
-
-}
-
-void prvCTask( void *pvParameters )
+void prvBlinkTask( void *pvParameters )
 {
 	BSP_LED_Init(LED3);
-	for( ;; )
-	{
-		if(y > 100)
-			BSP_LED_On(LED3);
-		else
-			BSP_LED_Off(LED3);
-		vTaskDelay(50);
-	}
-
-}
-
-void prvDTask( void *pvParameters )
-{
+	BSP_LED_Init(LED4);
+	BSP_LED_Init(LED5);
 	BSP_LED_Init(LED6);
 	for( ;; )
 	{
-		if(y < -100)
-			BSP_LED_On(LED6);
-		else
-			BSP_LED_Off(LED6);
-		vTaskDelay(50);
+		if( xSemaphoreTake( xSemaphoreBlink, ( TickType_t ) 100 ) == pdTRUE )
+		{
+			for(int i = 0; i < 4; i++)
+			{
+				BSP_LED_On(LED3); BSP_LED_On(LED4); BSP_LED_On(LED5); BSP_LED_On(LED6);
+				vTaskDelay(200);
+
+				BSP_LED_Off(LED3); BSP_LED_Off(LED4); BSP_LED_Off(LED5); BSP_LED_Off(LED6);
+				vTaskDelay(200);
+			}
+		}
 	}
 }
 
 void prvAccelerometerTask( void *pvParameters )
 {
+	BSP_ACCELERO_Init();
 	int16_t axes[3];
 
 	for( ;; )
@@ -106,7 +73,43 @@ void prvAccelerometerTask( void *pvParameters )
 		x = axes[0];
 		y = axes[1];
 		z = axes[2];
-		vTaskDelay(50);
+		vTaskDelay(10);
+	}
+}
+
+const int delta = 100;
+
+void prvCalculateTask( void *pvParameters ) {
+	int last_x = 0, last_y = 0;
+	int ax = 0, ay = 0;
+	uint32_t round = 0, checked = 0;
+	for ( ;; )
+	{
+		ax = x;
+		ay = y;
+		if (abs(last_x - x) > delta && abs(last_y - y) > delta)
+		{
+			if(abs((last_x/last_y)*(x/y)) >= 0.9)
+			{
+				checked += 1;
+
+				if (checked % 4 == 0)
+				{
+					xSemaphoreGive(xSemaphoreBlink);
+				}
+			}
+			last_x = x;
+			last_y = y;
+		}
+		else
+			round += 1;
+
+		if(round >= 100)
+		{
+			round = checked = 0;
+		}
+
+		vTaskDelay(20);
 	}
 }
 
